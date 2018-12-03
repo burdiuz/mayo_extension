@@ -20,6 +20,21 @@
   <script type="text/javascript">
     const { sqrt, pow, atan2, PI, max, min, cos, sin } = Math;
     const TO_DEG = 180 / PI;
+    const PI_05 = PI * 0.5;
+
+    const getSinToSmaller = (from, to, pos) =>
+      to + (cos(PI * pos) + 1) * (from - to) * 0.5;
+
+    const getSinToBigger = (from, to, pos) =>
+      from + (cos(PI * pos + PI) + 1) * (to - from) * 0.5;
+
+    const getSinFn = (from, to) => {
+      if (from < to) {
+        return getSinToBigger;
+      }
+
+      return getSinToSmaller;
+    };
 
     const getDistance = (x1, y1, x2, y2) =>
       sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
@@ -63,25 +78,12 @@
       true,
     );
 
-    cxStroke.filter = 'blur(5)';
-
     const MAX_THICKNESS = 30;
     const MAX_DISTANCE = 150;
     const MIN_DISTANCE = 5;
 
     let drawing = false;
     let drawRequestPending = false;
-
-    /*
-      Make it an array instead of start/current positions.
-      Put all mouse moves into array and start waiting on first.
-      When waiting is finished, redraw function will know past
-      and future strokes and their thicknesses, so will be able to
-      properly draw fluid.
-      After drawing reduce array to one element, so next drawing cycle
-      will know previous thickness. Array must clean on every
-      fast-non-drawing movement or mouse up event.
-    */
 
     /*
       How to draw
@@ -92,16 +94,201 @@
       exclusion so black BG should not be visible(By AND union).
     */
 
-    let startPosition;
-    let startTime;
-    let currentPosition;
-    let currentTime;
-    let lastThickness;
+    let records;
+
+    const addEventRecord = ({ offsetX, offsetY }) => {
+      const { length } = records;
+
+      if (length) {
+        const { x: startX, y: startY } = records[length - 1];
+        const distance = getDistance(startX, startY, offsetX, offsetY);
+
+        records.push({
+          x: offsetX,
+          y: offsetY,
+          distance,
+          angle: getAngle(startX, startY, offsetX, offsetY),
+          thickness:
+            (MAX_THICKNESS *
+              (1 - min(distance, MAX_DISTANCE) / MAX_DISTANCE)) >>
+            0,
+        });
+      } else {
+        records.push({
+          x: offsetX,
+          y: offsetY,
+        });
+      }
+    };
+
+    const reduceRecords = () => {
+      const { length } = records;
+      records = records.slice(length - 1, length);
+    };
+
+    const resetRecords = () => {
+      records = [];
+    };
+
+    const drawLineByXY = (thickness, startX, startY, endX, endY) => {
+      cxFill.lineWidth = thickness;
+
+      cxFill.beginPath();
+      cxFill.moveTo(startX, startY);
+      cxFill.lineTo(endX, endY);
+      cxFill.stroke();
+    };
+
+    const getSinThickness = (startThick, endThick, pos) => {};
+
+    const drawLineWithSinThick = (
+      startThickness,
+      endThickness,
+      sinFn,
+      startX,
+      startY,
+      distance,
+      angle,
+    ) => {
+      let currentX = startX;
+      let currentY = startY;
+
+      for (let current = 1; current <= distance; current++) {
+        const currentThickness = sinFn(
+          startThickness,
+          endThickness,
+          current / distance,
+        );
+
+        cxFill.beginPath();
+        cxFill.moveTo(currentX, currentY);
+
+        currentX = getX(current, angle, startX);
+        currentY = getY(current, angle, startY);
+
+        cxFill.lineTo(currentX, currentY);
+
+        cxFill.lineWidth = currentThickness;
+        cxFill.closePath();
+        cxFill.stroke();
+      }
+    };
+
+    const drawRecord = (startPosition, currentPosition, nextPosition) => {
+      const { x: endX, y: endY, distance, angle, thickness } = currentPosition;
+
+      if (thickness < 5) {
+        // Probably in this case better to check it on move handler and draw
+        // records immediately.
+        return;
+      }
+
+      const { x: startX, y: startY, thickness: prevThickness } = startPosition;
+      let nextThickness;
+
+      if (nextPosition) {
+        nextThickness = nextPosition.thickness;
+      }
+
+      const halfDistance = (distance * 0.5) >> 0;
+      const halfX = getX(halfDistance, angle, startX);
+      const halfY = getY(halfDistance, angle, startY);
+
+      // DRAW FIRST HALF
+      if (prevThickness === undefined || prevThickness === thickness) {
+        // simply draw line
+
+        drawLineByXY(thickness, startX, startY, halfX, halfY);
+      } else {
+        // draw line with Sin thickness
+
+        drawLineWithSinThick(
+          prevThickness,
+          thickness,
+          getSinFn(prevThickness, thickness),
+          startX,
+          startY,
+          halfDistance,
+          angle,
+        );
+      }
+
+      // DRAW SECOND HALF
+
+      // if (nextThickness === undefined || nextThickness === thickness) {
+      // simply draw line
+
+      drawLineByXY(thickness, halfX, halfY, endX, endY);
+      /*
+      } else {
+        // draw line with Sin thickness
+
+        drawLineWithSinThick(
+          thickness,
+          nextThickness,
+          getSinFn(thickness, nextThickness),
+          halfX,
+          halfY,
+          distance - halfDistance,
+          angle,
+        );
+      }
+      */
+    };
+
+    const drawRecords = () => {
+      drawRequestPending = false;
+      const { length } = records;
+
+      for (let index = 1; index < length; index++) {
+        drawRecord(records[index - 1], records[index], records[index + 1]);
+      }
+
+      reduceRecords();
+      cxStroke.globalCompositeOperation = 'source-over';
+      cxResult.globalCompositeOperation = 'source-over';
+
+      cxResult.clearRect(0, 0, cResult.width, cResult.height);
+
+      cxStroke.clearRect(0, 0, cStroke.width, cStroke.height);
+      cxStroke.fillRect(0, 0, cStroke.width, cStroke.height);
+      cxStroke.globalCompositeOperation = 'destination-out';
+      cxStroke.drawImage(cFill, 0, 0);
+      cxStroke.filter = 'blur(5px)';
+
+      cxResult.drawImage(cFill, 0, 0);
+      cxResult.globalCompositeOperation = 'source-atop';
+      cxResult.drawImage(cStroke, 0, 0);
+      // cxResult.filter = 'blur(1px)';
+    };
+
+    const waitToRedrawRecords = () => requestAnimationFrame(drawRecords);
+
+    const mouseMoveHandler = (event) => {
+      if (!drawing) {
+        return;
+      }
+
+      addEventRecord(event);
+
+      if (!drawRequestPending) {
+        drawRequestPending = true;
+        waitToRedrawRecords();
+        // ~42 ms = 24 FPS, ~83 ms = 12 FPS
+        //setTimeout(waitToRedrawRecords, 40);
+      }
+    };
+
+    cxStroke.fillStyle = '#f6ca50'; // '#e0990b';
+
+    cxFill.fillStyle = '#f4efd7';
+    cxFill.strokeStyle = '#f4efd7';
+    cxFill.lineJoin = 'round';
+    cxFill.lineCap = 'round';
+
 
     const mouseUpHandler = (event) => {
       drawing = false;
-      // reset thickness
-      lastThickness = undefined;
 
       window.removeEventListener('mouseup', mouseUpHandler);
     };
@@ -109,83 +296,14 @@
     const mouseDownHandler = (event) => {
       const { offsetX, offsetY } = event;
 
+      resetRecords();
+      addEventRecord(event);
       drawing = true;
-      startPosition = { x: offsetX, y: offsetY };
-      startTime = Date.now();
 
       window.addEventListener('mouseup', mouseUpHandler);
     };
 
-    cxResult.fillStyle = '#ffffff';
-    cxResult.strokeStyle = '#ffffff';
-    cxResult.lineJoin = 'round';
-    cxResult.lineCap = 'round';
-
-    const redraw = () => {
-      drawRequestPending = false;
-      const { x: startX, y: startY } = startPosition;
-      const { x: endX, y: endY } = currentPosition;
-      startPosition = currentPosition;
-
-      const distance = getDistance(startX, startY, endX, endY);
-      const angle = getAngle(startX, startY, endX, endY);
-      const degAngle = getAngleDeg(startX, startY, endX, endY);
-      const thickness =
-        MAX_THICKNESS * (1 - min(distance, MAX_DISTANCE) / MAX_DISTANCE);
-
-      if (thickness < 5) {
-        // reset thickness
-        lastThickness = undefined;
-        return;
-      }
-
-      console.log(
-        'distance: ',
-        distance >> 0,
-        'angle: ',
-        degAngle >> 0,
-        'thick: ',
-        thickness >> 0,
-      );
-
-      cxResult.lineWidth = thickness;
-
-      let currentX = startX;
-      let currentY = startY;
-
-      for (let current = 0; current < distance; current++) {
-        cxResult.beginPath();
-        cxResult.moveTo(currentX, currentY);
-
-        currentX = getX(distance, angle, startX);
-        currentY = getY(distance, angle, startY);
-
-        cxResult.lineTo(currentX, currentY);
-        cxResult.stroke();
-      }
-
-      //cxResult.lineTo(endX, endY);
-    };
-
-    const waitToRedraw = () => requestAnimationFrame(redraw);
-
     cResult.addEventListener('mousedown', mouseDownHandler);
-
-    cResult.addEventListener('mousemove', (event) => {
-      if (!drawing) {
-        return;
-      }
-
-      const { offsetX, offsetY } = event;
-      currentPosition = { x: offsetX, y: offsetY };
-      currentTime = Date.now();
-
-      if (!drawRequestPending) {
-        drawRequestPending = true;
-        // waitToRedraw();
-        // ~42 ms = 24 FPS, ~83 ms = 12 FPS
-        setTimeout(waitToRedraw, 80);
-      }
-    });
+    cResult.addEventListener('mousemove', mouseMoveHandler);
   </script>
 </html>
