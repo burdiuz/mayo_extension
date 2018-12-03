@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <title>Ext</title>
+    <base href="/" />
+    <style type="text/css">
+      html,
+      body {
+        padding: 0;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body bgcolor="#006600"></body>
+  <script type="text/javascript">
+    const { sqrt, pow, atan2, PI, max, min, cos, sin } = Math;
+    const TO_DEG = 180 / PI;
+
+    const getDistance = (x1, y1, x2, y2) =>
+      sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
+    /*
+              bottom -> top - 0 deg, clockwise
+            */
+    const getAngle = (x1, y1, x2, y2) => atan2(x2 - x1, y1 - y2);
+    const getAngleDeg = (x1, y1, x2, y2) => {
+      const deg = getAngle(x1, y1, x2, y2) * TO_DEG;
+
+      return deg < 0 ? deg + 360 : deg;
+    };
+
+    const getX = (distance, angle, x1) => distance * sin(angle) + x1;
+    const getY = (distance, angle, y1) => -distance * cos(angle) + y1;
+
+    const createCanvas = (
+      attrs = { width: 1920, height: 1080 },
+      styles = { position: 'fixed', outline: '1px solid #f00' },
+      append = false,
+    ) => {
+      const element = document.createElement('canvas');
+
+      Object.assign(element, attrs);
+      Object.assign(element.style, styles);
+
+      if (append) {
+        document.body.appendChild(element);
+      }
+
+      const context = element.getContext('2d');
+
+      return { element, context };
+    };
+
+    const { element: cFill, context: cxFill } = createCanvas();
+    const { element: cStroke, context: cxStroke } = createCanvas();
+    const { element: cResult, context: cxResult } = createCanvas(
+      undefined,
+      undefined,
+      true,
+    );
+
+    cxStroke.filter = 'blur(5)';
+
+    const MAX_THICKNESS = 30;
+    const MAX_DISTANCE = 150;
+    const MIN_DISTANCE = 5;
+
+    let drawing = false;
+    let drawRequestPending = false;
+
+    /*
+      Make it an array instead of start/current positions.
+      Put all mouse moves into array and start waiting on first.
+      When waiting is finished, redraw function will know past
+      and future strokes and their thicknesses, so will be able to
+      properly draw fluid.
+      After drawing reduce array to one element, so next drawing cycle
+      will know previous thickness. Array must clean on every
+      fast-non-drawing movement or mouse up event.
+    */
+
+    /*
+      How to draw
+      1. transparent canvas which draws a visible line
+      2. canvas with black background and blur filter, the line will be
+      excluded from BG(By XOR union) leaving blurred transparent line.
+      3. On result canvas put original line and transparent blurred line with
+      exclusion so black BG should not be visible(By AND union).
+    */
+
+    let startPosition;
+    let startTime;
+    let currentPosition;
+    let currentTime;
+    let lastThickness;
+
+    const mouseUpHandler = (event) => {
+      drawing = false;
+      // reset thickness
+      lastThickness = undefined;
+
+      window.removeEventListener('mouseup', mouseUpHandler);
+    };
+
+    const mouseDownHandler = (event) => {
+      const { offsetX, offsetY } = event;
+
+      drawing = true;
+      startPosition = { x: offsetX, y: offsetY };
+      startTime = Date.now();
+
+      window.addEventListener('mouseup', mouseUpHandler);
+    };
+
+    cxResult.fillStyle = '#ffffff';
+    cxResult.strokeStyle = '#ffffff';
+    cxResult.lineJoin = 'round';
+    cxResult.lineCap = 'round';
+
+    const redraw = () => {
+      drawRequestPending = false;
+      const { x: startX, y: startY } = startPosition;
+      const { x: endX, y: endY } = currentPosition;
+      startPosition = currentPosition;
+
+      const distance = getDistance(startX, startY, endX, endY);
+      const angle = getAngle(startX, startY, endX, endY);
+      const degAngle = getAngleDeg(startX, startY, endX, endY);
+      const thickness =
+        MAX_THICKNESS * (1 - min(distance, MAX_DISTANCE) / MAX_DISTANCE);
+
+      if (thickness < 5) {
+        // reset thickness
+        lastThickness = undefined;
+        return;
+      }
+
+      console.log(
+        'distance: ',
+        distance >> 0,
+        'angle: ',
+        degAngle >> 0,
+        'thick: ',
+        thickness >> 0,
+      );
+
+      cxResult.lineWidth = thickness;
+
+      let currentX = startX;
+      let currentY = startY;
+
+      for (let current = 0; current < distance; current++) {
+        cxResult.beginPath();
+        cxResult.moveTo(currentX, currentY);
+
+        currentX = getX(distance, angle, startX);
+        currentY = getY(distance, angle, startY);
+
+        cxResult.lineTo(currentX, currentY);
+        cxResult.stroke();
+      }
+
+      //cxResult.lineTo(endX, endY);
+    };
+
+    const waitToRedraw = () => requestAnimationFrame(redraw);
+
+    cResult.addEventListener('mousedown', mouseDownHandler);
+
+    cResult.addEventListener('mousemove', (event) => {
+      if (!drawing) {
+        return;
+      }
+
+      const { offsetX, offsetY } = event;
+      currentPosition = { x: offsetX, y: offsetY };
+      currentTime = Date.now();
+
+      if (!drawRequestPending) {
+        drawRequestPending = true;
+        // waitToRedraw();
+        // ~42 ms = 24 FPS, ~83 ms = 12 FPS
+        setTimeout(waitToRedraw, 80);
+      }
+    });
+  </script>
+</html>
