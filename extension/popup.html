@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <title>MAYO Settings</title>
+    <style type="text/css">
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        min-width: 160px;
+        min-height: 120px;
+      }
+
+      .controls {
+        display: flex;
+      }
+
+      .button-container {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: center;
+        margin-bottom: 2rem;
+      }
+
+      .button-container > button {
+        display: flex;
+        font-size: 1.4rem;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .button-container > button > img {
+        margin-right: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+
+    <div class="controls button-container">
+      <button id="start"><img src="icon24.png"/> <span class="button-text">Spil the joy!</span></button>
+    </div>
+
+    <div class="controls">
+      <input type="range" id="size" name="size"
+             min="10" max="100" value="40" step="1">
+      <label for="size">Spil size</label>
+    </div>
+
+    <div class="controls">
+      <input type="range" id="viscosity" name="viscosity"
+             min="5" max="300" value="150" step="1">
+      <label for="viscosity">Viscosity</label>
+    </div>
+  </body>
+  <script src="popup.js"></script>
+</html>
