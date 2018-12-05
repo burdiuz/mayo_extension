@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "MAYO",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "MAYO makes anything better",
   "icons":{
      "16": "icon16.png",
@@ -17,16 +17,10 @@
      "default_title": "Make it better with MAYO.",
      "default_popup": "popup.html"
   },
-  "background":{
-     "scripts":[
-        "background.js"
-     ],
-     "persistent": false
-  },
   "homepage_url": "https://github.com/burdiuz/mayo_extension",
   "offline_enabled": true,
   "permissions":[
-     "activeTab"
+    "activeTab"
   ],
   "short_name": "MAYO"
 }

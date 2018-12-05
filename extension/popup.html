@@ -21,7 +21,7 @@
       }
 
       .button-container {
-        display: flex;
+        display: none;
         flex-direction: column;
         align-items: stretch;
         justify-content: center;
@@ -36,26 +36,46 @@
       }
 
       .button-container > button > img {
-        margin-right: 0.5rem;
+        margin-right: 1rem;
+      }
+
+      .select-container {
+        margin: 1rem;
       }
     </style>
   </head>
   <body>
 
-    <div class="controls button-container">
+    <div class="controls button-container start-container">
       <button id="start"><img src="icon24.png"/> <span class="button-text">Spil the joy!</span></button>
+    </div>
+
+    <div class="controls button-container stop-container">
+      <button id="stop"><img src="icon24no.png"/> <span class="button-text">Enough!</span></button>
     </div>
 
     <div class="controls">
       <input type="range" id="size" name="size"
-             min="10" max="100" value="40" step="1">
+             min="10" max="100" step="1">
       <label for="size">Spil size</label>
     </div>
 
     <div class="controls">
       <input type="range" id="viscosity" name="viscosity"
-             min="5" max="300" value="150" step="1">
+             min="0" max="295" step="1">
       <label for="viscosity">Viscosity</label>
+    </div>
+
+    <div class="controls select-container">
+      <select id="type" name="type">
+          <option value="mayo">Mayonnaise</option>
+          <option value="hmmayo">Homemade mayonnaise</option>
+          <option value="ketchup">Ketchup</option>
+          <option value="mustard">Mustard</option>
+          <option value="wasabi">Wasabi</option>
+          <option value="guacamole">Guacamole</option>
+          <option value="bbq">Barbeque Sauce</option>
+        </select>
     </div>
   </body>
   <script src="popup.js"></script>

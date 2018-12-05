@@ -69,20 +69,20 @@ const createCanvas = (
 
 const { element: cFill, context: cxFill } = createCanvas();
 const { element: cStroke, context: cxStroke } = createCanvas();
-const { element: cResult, context: cxResult } = createCanvas(
-  undefined,
-  {
-    display: 'none',
-    position: 'absolute',
-    zIndex: Number.MAX_SAFE_INTEGER,
-    top: 0,
-    left: 0,
-  },
-  true,
-);
+const { element: cResult, context: cxResult } = createCanvas(undefined, {
+  display: 'block',
+  position: 'absolute',
+  zIndex: Number.MAX_SAFE_INTEGER,
+  top: 0,
+  left: 0,
+});
 
-const MAX_THICKNESS = 40;
-const MAX_DISTANCE = 150;
+/*
+  MAX_THICKNESS and MAX_DISTANCE are configurable options now
+  and set in applyOptions()
+*/
+let MAX_THICKNESS;
+let MAX_DISTANCE;
 const MIN_DISTANCE = 5;
 
 let drawing = false;
@@ -245,8 +245,6 @@ const mouseMoveHandler = (event) => {
   }
 };
 
-cxStroke.fillStyle = '#e4d2a7'; // '#f6ca50';
-cxFill.strokeStyle = '#fafaef'; // '#f4efd7';
 cxFill.lineJoin = 'round';
 cxFill.lineCap = 'round';
 
@@ -272,7 +270,63 @@ const set = (obj, name, value, restore = null) => {
   return setMore;
 };
 
+const clearCanvases = () => {
+  cxResult.clearRect(0, 0, cResult.width, cResult.height);
+  cxStroke.clearRect(0, 0, cStroke.width, cStroke.height);
+  cxFill.clearRect(0, 0, cFill.width, cFill.height);
+};
+
+const applyOptions = () => {
+  MAX_THICKNESS = window._mayoOptionsSize;
+  MAX_DISTANCE = window._mayoOptionsViscosity;
+
+  switch (window._mayoOptionsType) {
+    case 'bbq':
+      cxFill.strokeStyle = '#421709'; // '#8E4103';
+      //cxStroke.fillStyle = '#421709';
+      break;
+    case 'mustard':
+      cxFill.strokeStyle = '#E6CB4E';
+      //cxStroke.fillStyle = '#B48107';
+      break;
+    case 'ketchup':
+      cxFill.strokeStyle = '#E42D26';
+      //cxStroke.fillStyle = '#971017';
+      break;
+    case 'hmmayo':
+      cxFill.strokeStyle = '#F7F1D1';
+      //cxStroke.fillStyle = '#EDBE4F';
+      break;
+    case 'wasabi':
+      cxFill.strokeStyle = '#A0C003';
+      //cxStroke.fillStyle = '#647700';
+      break;
+    case 'guacamole':
+      cxFill.strokeStyle = '#B8D569';
+      //cxStroke.fillStyle = '#69862B';
+      break;
+    case 'mayo':
+    default:
+      cxFill.strokeStyle = '#F5F2ED';
+      //cxStroke.fillStyle = '#DDC9A7';
+      break;
+  }
+
+  cxStroke.fillStyle = '#bbbbaa';
+};
+
 let locked;
+let lastYScrollPosition = 0;
+
+const clearIfScrolled = () => {
+  const { top } = document.documentElement.getBoundingClientRect();
+
+  if (Math.abs(top - lastYScrollPosition) > 50) {
+    clearCanvases();
+  }
+
+  lastYScrollPosition = top;
+};
 
 const lockBody = () => {
   const { body, documentElement } = document;
@@ -281,30 +335,26 @@ const lockBody = () => {
   requestAnimationFrame(() => {
     const { top, left } = documentElement.getBoundingClientRect();
 
-    set(cResult.style)('display', 'unset')('top', `${-top}px`)(
-      'left',
-      `${-left}px`,
-    );
+    set(cResult.style)('top', `${-top}px`)('left', `${-left}px`);
   });
 
-  /*
-  set(cResult.style)
-    ('display', 'unset')
-    ('position', 'sticky')
-    ('top', 0)
-    ('left', 0);
-  */
   cResult.focus();
 };
 
 const unlockBody = () => {
   locked.restore();
-  set(cResult.style)('display', 'none');
 };
 
-const mayoAudio = new Audio(AUDIO_SRC);
-mayoAudio.loop = true;
-mayoAudio.oncanplaythrough = () => console.log('Audio is available');
+let mayoAudio;
+
+const createAudio = () => {
+  if (mayoAudio) {
+    mayoAudio.pause();
+  }
+
+  mayoAudio = new Audio(AUDIO_SRC);
+  mayoAudio.loop = true;
+};
 
 const mouseUpHandler = (event) => {
   drawing = false;
@@ -317,6 +367,8 @@ const mouseUpHandler = (event) => {
 const mouseDownHandler = (event) => {
   const { offsetX, offsetY } = event;
 
+  applyOptions();
+  clearIfScrolled();
   lockBody();
   resetRecords();
   addEventRecord(event);
@@ -326,5 +378,33 @@ const mouseDownHandler = (event) => {
   window.addEventListener('mouseup', mouseUpHandler);
 };
 
-window.addEventListener('mousedown', mouseDownHandler);
-cResult.addEventListener('mousemove', mouseMoveHandler);
+if (window._mayoStop) {
+  // was initialized already
+  window._mayoStop();
+} else {
+  // never initialized, do
+  window._mayoOptionsSize = 40;
+  window._mayoOptionsViscosity = 150;
+  window._mayoOptionsType = 'mayo';
+  window._mayoEnabled = false;
+}
+
+window._mayoStop = () => {
+  window.removeEventListener('mousedown', mouseDownHandler);
+  window.removeEventListener('mouseup', mouseUpHandler);
+  cResult.removeEventListener('mousemove', mouseMoveHandler);
+  if (document.body.contains(cResult)) {
+    clearCanvases();
+    document.body.removeChild(cResult);
+  }
+  window._mayoEnabled = false;
+};
+
+window._mayoStart = () => {
+  window._mayoStop();
+  createAudio();
+  document.body.prepend(cResult);
+  window.addEventListener('mousedown', mouseDownHandler);
+  cResult.addEventListener('mousemove', mouseMoveHandler);
+  window._mayoEnabled = true;
+};
